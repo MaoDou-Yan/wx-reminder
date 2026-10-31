@@ -62,7 +62,7 @@ def get_weather():
 
 
 def get_horoscope():
-    """聚合星座接口，独立KEY，加长截取长度，适配模板"""
+    """聚合星座接口，调整顺序，优先展示指数，summary压缩到80字，避免微信截断"""
     try:
         url = "http://web.juhe.cn/constellation/getAll"
         params = {
@@ -81,9 +81,9 @@ def get_horoscope():
         number = res.get("number", "")
         summary = res.get("summary", "")
 
-        # 加长到120字，微信模板字段上限足够，避免截断太短
-        short = summary[:120] if len(summary) > 120 else summary
-        return f"{short}\n综合指数：{all_score} | 幸运色：{color} | 幸运数字：{number}"
+        # 先放指数、幸运信息，运势正文压缩到80字符
+        summary_short = summary[:80] if len(summary) > 80 else summary
+        return f"综合：{all_score} | 幸运色：{color} | 数字：{number}\n{summary_short}"
 
     except Exception as e:
         print("星座接口异常：", e)
@@ -111,7 +111,6 @@ def get_lunar():
 
 def send_msg():
     token = get_token()
-    # 直接获取北京时间，解决时区问题
     now = datetime.now(tz=TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
 
     weather = get_weather()
