@@ -1,6 +1,7 @@
 import requests
 import os
 from datetime import datetime
+import pytz
 from lunar_python import Solar
 
 # ===== 微信配置（Secrets）=====
@@ -16,6 +17,7 @@ JUHE_HORO_KEY = os.getenv("JUHE_HORO_KEY")
 # ===== 固定参数 =====
 CITY_NAME = "徐州"
 CONS_NAME = "双鱼座"
+TIMEZONE = pytz.timezone("Asia/Shanghai")
 
 
 def get_token():
@@ -60,7 +62,7 @@ def get_weather():
 
 
 def get_horoscope():
-    """聚合星座接口，独立KEY"""
+    """聚合星座接口，独立KEY，加长截取长度，适配模板"""
     try:
         url = "http://web.juhe.cn/constellation/getAll"
         params = {
@@ -79,8 +81,8 @@ def get_horoscope():
         number = res.get("number", "")
         summary = res.get("summary", "")
 
-        short = summary[:60] + "..." if len(summary) > 60 else summary
-
+        # 加长到120字，微信模板字段上限足够，避免截断太短
+        short = summary[:120] if len(summary) > 120 else summary
         return f"{short}\n综合指数：{all_score} | 幸运色：{color} | 幸运数字：{number}"
 
     except Exception as e:
@@ -90,7 +92,7 @@ def get_horoscope():
 
 def get_lunar():
     try:
-        now = datetime.now()
+        now = datetime.now(tz=TIMEZONE)
         solar = Solar.fromDate(now)
         lunar = solar.getLunar()
 
@@ -109,7 +111,8 @@ def get_lunar():
 
 def send_msg():
     token = get_token()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 直接获取北京时间，解决时区问题
+    now = datetime.now(tz=TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
 
     weather = get_weather()
     horo = get_horoscope()
