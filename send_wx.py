@@ -15,34 +15,22 @@ def get_token():
         raise Exception("token获取失败")
     return res["access_token"]
 
-def send_msg(content):
+def send_msg():
     token = get_token()
-    url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={token}"
-    resp = requests.post(url, json={
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data = {
         "touser": OPENID,
         "template_id": TEMPLATE_ID,
         "data": {
-            "notice": {"value": content}
+            "time": {"value": now},
+            "weather": {"value": "晴，22~30℃"},
+            "horo": {"value": "今日运势平稳"},
+            "lunar": {"value": "丙午年九月廿二"},
+            "todo": {"value": "1. 完成测试\n2. 整理文档"}
         }
-    })
-    print("微信返回结果：", resp.json())
+    }
+    resp = requests.post(f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={token}", json=data)
+    print("微信返回：", resp.json())
 
 if __name__ == "__main__":
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # ========== 在这里修改你的内容 ==========
-    msg = f"""{now}
-——————————
-🌤 【天气】
-
-
-✨ 【星座运势】
-
-
-📜 【农历运势】
-
-
-📋 【今日代办】
-1. xxxxx
-2. xxxxx
-"""
-    send_msg(msg)
+    send_msg()
