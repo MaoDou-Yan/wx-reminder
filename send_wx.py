@@ -124,21 +124,21 @@ def send_msg():
     line4 = horo_lines[3] if len(horo_lines) >= 4 else "-"
 
     data = {
-    "touser": OPENID,
-    "template_id": TEMPLATE_ID,
-    "data": {
-        "time": {"value": "测试时间"},
-        "weather": {"value": "测试天气"},
-        "horo_head": {"value": "测试星座"},
-        "horo_line1": {"value": "测试正文一"},
-        "horo_line2": {"value": "测试正文二"},
-        "horo_line3": {"value": "测试正文三"},
-        "horo_line4": {"value": "测试正文四"},
-        "lunar_date": {"value": "测试农历"},
-        "yiji": {"value": "测试宜忌"},
-        "todo": {"value": "测试待办"}
+        "touser": OPENID,
+        "template_id": TEMPLATE_ID,
+        "data": {
+            "time": {"value": now},
+            "weather": {"value": weather},
+            "horo_head": {"value": horo_head},
+            "horo_line1": {"value": line1},
+            "horo_line2": {"value": line2},
+            "horo_line3": {"value": line3},
+            "horo_line4": {"value": line4},
+            "lunar_date": {"value": lunar_date},
+            "yiji": {"value": yiji},
+            "todo": {"value": todo}
+        }
     }
-}
     resp = requests.post(
         f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={token}",
         json=data,
