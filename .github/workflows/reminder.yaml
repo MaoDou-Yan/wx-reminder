@@ -25,4 +25,6 @@ jobs:
           WX_APPSECRET: ${{ secrets.WX_APPSECRET }}
           WX_OPENID: ${{ secrets.WX_OPENID }}
           WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
+          JUHE_WEATHER_KEY: ${{ secrets.JUHE_WEATHER_KEY }}
+          JUHE_HORO_KEY: ${{ secrets.JUHE_HORO_KEY }}
         run: python send_wx.py
