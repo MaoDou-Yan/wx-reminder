@@ -9,9 +9,9 @@ APPSECRET = os.getenv("WX_APPSECRET")
 OPENID = os.getenv("WX_OPENID")
 TEMPLATE_ID = os.getenv("WX_TEMPLATE_ID")
 
-# ===== 聚合数据配置（Secrets）=====
-# 同一个聚合账号下的天气+星座，通常共用一个key
-JUHE_KEY = os.getenv("JUHE_KEY")
+# ===== 聚合数据 分开两个KEY =====
+JUHE_WEATHER_KEY = os.getenv("JUHE_WEATHER_KEY")
+JUHE_HORO_KEY = os.getenv("JUHE_HORO_KEY")
 
 # ===== 固定参数 =====
 CITY_NAME = "徐州"
@@ -28,11 +28,11 @@ def get_token():
 
 
 def get_weather():
-    """聚合数据 - 徐州实时天气 + 今日温度范围"""
+    """聚合天气接口，独立KEY"""
     try:
         url = "https://apis.juhe.cn/simpleWeather/query"
         params = {
-            "key": JUHE_KEY,
+            "key": JUHE_WEATHER_KEY,
             "city": CITY_NAME,
             "future_num": 1
         }
@@ -50,7 +50,7 @@ def get_weather():
         weather_info = realtime.get("info", "--")
         direct = realtime.get("direct", "")
         power = realtime.get("power", "")
-        today_temp = future.get("temperature", "--")  # 格式如 "1/7℃"
+        today_temp = future.get("temperature", "--")
 
         return f"{weather_info} {temp_now}°C（{today_temp}）\n{direct} {power}"
 
@@ -60,11 +60,11 @@ def get_weather():
 
 
 def get_horoscope():
-    """聚合数据 - 双鱼座今日运势"""
+    """聚合星座接口，独立KEY"""
     try:
         url = "http://web.juhe.cn/constellation/getAll"
         params = {
-            "key": JUHE_KEY,
+            "key": JUHE_HORO_KEY,
             "consName": CONS_NAME,
             "type": "today"
         }
@@ -79,7 +79,6 @@ def get_horoscope():
         number = res.get("number", "")
         summary = res.get("summary", "")
 
-        # 截取前60字，避免模板消息超长
         short = summary[:60] + "..." if len(summary) > 60 else summary
 
         return f"{short}\n综合指数：{all_score} | 幸运色：{color} | 幸运数字：{number}"
@@ -90,7 +89,6 @@ def get_horoscope():
 
 
 def get_lunar():
-    """本地计算 - 农历黄历（干支、生肖、宜、忌）"""
     try:
         now = datetime.now()
         solar = Solar.fromDate(now)
