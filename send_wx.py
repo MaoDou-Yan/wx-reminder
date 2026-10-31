@@ -1,18 +1,18 @@
 import requests
 import os
 from datetime import datetime
-from lunar_python import Solar  # 需要 pip install lunar-python
+from lunar_python import Solar
 
 APPID = os.getenv("WX_APPID")
 APPSECRET = os.getenv("WX_APPSECRET")
 OPENID = os.getenv("WX_OPENID")
 TEMPLATE_ID = os.getenv("WX_TEMPLATE_ID")
 
-# ===== 在这里改你的城市和星座 =====
-CITY_LAT = 31.2989    # 苏州纬度
-CITY_LON = 120.5853   # 苏州经度
-ZODIAC_SIGN = "pisces"  # 你的星座英文：aries/taurus/gemini/cancer/leo/virgo/libra/scorpio/sagittarius/capricorn/aquarius/pisces
-# ==================================
+# ===== 徐州 + 双鱼座 =====
+CITY_LAT = 34.2665
+CITY_LON = 117.1810
+ZODIAC_SIGN = "pisces"
+# =========================
 
 
 def get_token():
@@ -51,7 +51,7 @@ def get_weather():
 
 
 def get_horoscope():
-    """从 aztro API 获取今日星座运势"""
+    """从 aztro API 获取今日星座运势（英文源）"""
     url = f"https://aztro.sameerkumar.website/?sign={ZODIAC_SIGN}&day=today"
     res = requests.post(url, timeout=10).json()
 
@@ -60,21 +60,20 @@ def get_horoscope():
     lucky_num = res.get("lucky_number", "")
     description = res.get("description", "")
 
-    # 截取前50字，避免太长
     short_desc = description[:50] + "..." if len(description) > 50 else description
     return f"{short_desc}\n运势心情：{mood} | 幸运色：{lucky_color} | 幸运数字：{lucky_num}"
 
 
 def get_lunar():
-    """用 lunar-python 库本地计算农历+宜忌"""
+    """本地计算农历黄历"""
     today = Solar.fromDate(datetime.now())
     lunar = today.getLunar()
 
     lunar_date = f"{lunar.getYearInChinese()}年{lunar.getMonthInChinese()}月{lunar.getDayInChinese()}"
-    animal = lunar.getYearShengXiao()  # 生肖
-    ganzhi_year = lunar.getYearInGanZhi()  # 干支年
-    yi = "、".join(lunar.getDayYi()[:3])  # 宜（取前3个）
-    ji = "、".join(lunar.getDayJi()[:3])  # 忌（取前3个）
+    animal = lunar.getYearShengXiao()
+    ganzhi_year = lunar.getYearInGanZhi()
+    yi = "、".join(lunar.getDayYi()[:3])
+    ji = "、".join(lunar.getDayJi()[:3])
 
     return f"{ganzhi_year}年({animal}) {lunar_date}\n宜：{yi}\n忌：{ji}"
 
