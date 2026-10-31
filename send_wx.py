@@ -1,17 +1,21 @@
 import requests
 import os
 from datetime import datetime
-from lunardate import LunarDate
+from lunar_python import Solar
 
+# ===== 微信配置（Secrets）=====
 APPID = os.getenv("WX_APPID")
 APPSECRET = os.getenv("WX_APPSECRET")
 OPENID = os.getenv("WX_OPENID")
 TEMPLATE_ID = os.getenv("WX_TEMPLATE_ID")
 
-# 徐州坐标 + 双鱼座
-CITY_LAT = 34.2665
-CITY_LON = 117.1810
-ZODIAC_SIGN = "pisces"
+# ===== 聚合数据配置（Secrets）=====
+# 同一个聚合账号下的天气+星座，通常共用一个key
+JUHE_KEY = os.getenv("JUHE_KEY")
+
+# ===== 固定参数 =====
+CITY_NAME = "徐州"
+CONS_NAME = "双鱼座"
 
 
 def get_token():
@@ -24,53 +28,85 @@ def get_token():
 
 
 def get_weather():
+    """聚合数据 - 徐州实时天气 + 今日温度范围"""
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={CITY_LAT}&longitude={CITY_LON}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=Asia/Shanghai"
-        res = requests.get(url, timeout=10).json()
-        weather_code_map = {
-            0: "晴", 1: "晴间多云", 2: "多云", 3: "阴",
-            45: "雾", 48: "雾凇", 51: "小毛毛雨", 53: "中毛毛雨", 55: "大毛毛雨",
-            61: "小雨", 63: "中雨", 65: "大雨", 66: "冻雨", 67: "强冻雨",
-            71: "小雪", 73: "中雪", 75: "大雪", 77: "阵雪",
-            80: "小阵雨", 81: "中阵雨", 82: "强阵雨",
-            95: "雷阵雨", 96: "雷阵雨伴冰雹", 99: "强雷阵雨伴冰雹"
+        url = "https://apis.juhe.cn/simpleWeather/query"
+        params = {
+            "key": JUHE_KEY,
+            "city": CITY_NAME,
+            "future_num": 1
         }
-        current = res.get("current", {})
-        daily = res.get("daily", {})
-        temp_now = current.get("temperature_2m", "--")
-        code = current.get("weather_code", 0)
-        weather_text = weather_code_map.get(code, f"未知({code})")
-        temp_max = daily.get("temperature_2m_max", ["--"])[0]
-        temp_min = daily.get("temperature_2m_min", ["--"])[0]
-        return f"{weather_text} {temp_now}°C（{temp_min}°~{temp_max}°）"
+        res = requests.get(url, params=params, timeout=10).json()
+
+        if res.get("error_code") != 0:
+            print("天气接口错误：", res.get("reason"))
+            return "天气获取失败"
+
+        result = res.get("result", {})
+        realtime = result.get("realtime", {})
+        future = result.get("future", [{}])[0]
+
+        temp_now = realtime.get("temperature", "--")
+        weather_info = realtime.get("info", "--")
+        direct = realtime.get("direct", "")
+        power = realtime.get("power", "")
+        today_temp = future.get("temperature", "--")  # 格式如 "1/7℃"
+
+        return f"{weather_info} {temp_now}°C（{today_temp}）\n{direct} {power}"
+
     except Exception as e:
         print("天气接口异常：", e)
         return "天气获取失败"
 
 
 def get_horoscope():
+    """聚合数据 - 双鱼座今日运势"""
     try:
-        url = f"https://aztro.sameerkumar.website/?sign={ZODIAC_SIGN}&day=today"
-        res = requests.post(url, timeout=10).json()
-        mood = res.get("mood", "")
-        lucky_color = res.get("color", "")
-        lucky_num = res.get("lucky_number", "")
-        description = res.get("description", "")
-        short_desc = description[:50] + "..." if len(description) > 50 else description
-        return f"{short_desc}\n心情：{mood} | 幸运色：{lucky_color} | 幸运数字：{lucky_num}"
+        url = "http://web.juhe.cn/constellation/getAll"
+        params = {
+            "key": JUHE_KEY,
+            "consName": CONS_NAME,
+            "type": "today"
+        }
+        res = requests.get(url, params=params, timeout=10).json()
+
+        if res.get("error_code") != 0:
+            print("星座接口错误：", res.get("reason"))
+            return "星座运势获取失败"
+
+        all_score = res.get("all", "")
+        color = res.get("color", "")
+        number = res.get("number", "")
+        summary = res.get("summary", "")
+
+        # 截取前60字，避免模板消息超长
+        short = summary[:60] + "..." if len(summary) > 60 else summary
+
+        return f"{short}\n综合指数：{all_score} | 幸运色：{color} | 幸运数字：{number}"
+
     except Exception as e:
         print("星座接口异常：", e)
         return "星座运势获取失败"
 
 
 def get_lunar():
+    """本地计算 - 农历黄历（干支、生肖、宜、忌）"""
     try:
         now = datetime.now()
-        lunar = LunarDate.fromSolarDate(now.year, now.month, now.day)
-        return f"{lunar.year}年{lunar.month}月{lunar.day}日"
+        solar = Solar.fromDate(now)
+        lunar = solar.getLunar()
+
+        lunar_date = f"{lunar.getYearInChinese()}年{lunar.getMonthInChinese()}月{lunar.getDayInChinese()}"
+        ganzhi = lunar.getYearInGanZhi()
+        animal = lunar.getYearShengXiao()
+        yi = "、".join(lunar.getDayYi()[:3])
+        ji = "、".join(lunar.getDayJi()[:3])
+
+        return f"{ganzhi}年({animal}) {lunar_date}\n宜：{yi}\n忌：{ji}"
+
     except Exception as e:
-        print("农历计算异常：", e)
-        return "农历获取失败"
+        print("农历黄历异常：", e)
+        return "农历黄历获取失败"
 
 
 def send_msg():
