@@ -20,14 +20,16 @@ CONS_NAME = "双鱼座"
 TIMEZONE = pytz.timezone("Asia/Shanghai")
 LINE_MAX = 20  # 每行最多20汉字
 
-def split_text_by_len(text, max_len):
-    """按字数分割文本，返回列表，每段不超过max_len，空则返回空字符串"""
+
+def split_text(text, max_len):
+    """按字数切割文本，返回列表"""
     res = []
     if not text:
         return res
     for i in range(0, len(text), max_len):
         res.append(text[i:i+max_len])
     return res
+
 
 def get_token():
     url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APPID}&secret={APPSECRET}"
@@ -37,58 +39,52 @@ def get_token():
         raise Exception("token获取失败")
     return res["access_token"]
 
+
 def get_weather():
     try:
         url = "https://apis.juhe.cn/simpleWeather/query"
-        params = {
-            "key": JUHE_WEATHER_KEY,
-            "city": CITY_NAME,
-            "future_num": 1
-        }
+        params = {"key": JUHE_WEATHER_KEY, "city": CITY_NAME, "future_num": 1}
         res = requests.get(url, params=params, timeout=10).json()
         if res.get("error_code") != 0:
-            print("天气接口错误：", res.get("reason"))
             return "获取失败"
-        result = res.get("result", {})
-        realtime = result.get("realtime", {})
-        future = result.get("future", [{}])[0]
-        temp_now = realtime.get("temperature", "--")
-        weather_info = realtime.get("info", "--")
-        today_temp = future.get("temperature", "--")
-        return f"{weather_info} {temp_now}℃（{today_temp}）"
+        rt = res["result"]
+        now = rt["realtime"]
+        today = rt["future"][0]
+        # 控制在20字以内
+        return f"{now['info']} {now['temperature']}℃（{today['temperature']}）"
     except Exception as e:
-        print("天气接口异常：", e)
+        print("天气异常：", e)
         return "获取失败"
 
-def get_horo_data():
-    """只请求一次星座接口，返回原始数据，不截断"""
+
+def get_horo():
+    """返回 (头部行, 正文行列表)"""
     try:
         url = "http://web.juhe.cn/constellation/getAll"
-        params = {
-            "key": JUHE_HORO_KEY,
-            "consName": CONS_NAME,
-            "type": "today"
-        }
+        params = {"key": JUHE_HORO_KEY, "consName": CONS_NAME, "type": "today"}
         res = requests.get(url, params=params, timeout=10).json()
         if res.get("error_code") != 0:
-            print("星座接口错误：", res.get("reason"))
-            return {"all":"--","color":"--","number":"--","summary":""}
-        return {
-            "all": res.get("all", "--"),
-            "color": res.get("color", "--"),
-            "number": res.get("number", "--"),
-            "summary": res.get("summary", "")
-        }
+            return "综合-- | -- | --", []
+
+        all_score = res.get("all", "--")
+        color = res.get("color", "--")
+        number = res.get("number", "--")
+        summary = res.get("summary", "")
+
+        head = f"综合{all_score} | {color} | {number}"
+        lines = split_text(summary, LINE_MAX)
+        return head, lines
+
     except Exception as e:
-        print("星座接口异常：", e)
-        return {"all":"--","color":"--","number":"--","summary":""}
+        print("星座异常：", e)
+        return "获取失败", []
+
 
 def get_lunar_date():
     try:
         now = datetime.now(tz=TIMEZONE)
         lunar = Solar.fromDate(now).getLunar()
         ganzhi = lunar.getYearInGanZhi()
-        animal = lunar.getYearInGanZhi()
         animal = lunar.getYearShengXiao()
         month = lunar.getMonthInChinese()
         day = lunar.getDayInChinese()
@@ -96,6 +92,7 @@ def get_lunar_date():
     except Exception as e:
         print("农历日期异常：", e)
         return "获取失败"
+
 
 def get_yiji():
     try:
@@ -108,24 +105,23 @@ def get_yiji():
         print("宜忌异常：", e)
         return "获取失败"
 
+
 def send_msg():
     token = get_token()
     now = datetime.now(tz=TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
 
     weather = get_weather()
-    horo = get_horo_data()
-    horo_head = f"综合{horo['all']} | {horo['color']} | {horo['number']}"
-    line_list = split_text_by_len(horo["summary"], LINE_MAX)
-
-    # 预先填充4行，不足的自动为空字符串
-    horo_line1 = line_list[0] if len(line_list)>=1 else ""
-    horo_line2 = line_list[1] if len(line_list)>=2 else ""
-    horo_line3 = line_list[2] if len(line_list)>=3 else ""
-    horo_line4 = line_list[3] if len(line_list)>=4 else ""
-
+    horo_head, horo_lines = get_horo()
     lunar_date = get_lunar_date()
     yiji = get_yiji()
-    todo_list = "1.完成今日工作复盘\n2.学习软考高项资料30分钟\n3.晚上健身30分钟"
+
+    todo = "1.工作复盘 2.软考学习\n3.健身30分钟"
+
+    # 关键：空行统一填 "-"，微信就不会吞行
+    line1 = horo_lines[0] if len(horo_lines) >= 1 else "-"
+    line2 = horo_lines[1] if len(horo_lines) >= 2 else "-"
+    line3 = horo_lines[2] if len(horo_lines) >= 3 else "-"
+    line4 = horo_lines[3] if len(horo_lines) >= 4 else "-"
 
     data = {
         "touser": OPENID,
@@ -134,13 +130,13 @@ def send_msg():
             "time": {"value": now},
             "weather": {"value": weather},
             "horo_head": {"value": horo_head},
-            "horo_line1": {"value": horo_line1},
-            "horo_line2": {"value": horo_line2},
-            "horo_line3": {"value": horo_line3},
-            "horo_line4": {"value": horo_line4},
+            "horo_line1": {"value": line1},
+            "horo_line2": {"value": line2},
+            "horo_line3": {"value": line3},
+            "horo_line4": {"value": line4},
             "lunar_date": {"value": lunar_date},
             "yiji": {"value": yiji},
-            "todo": {"value": todo_list}
+            "todo": {"value": todo}
         }
     }
     resp = requests.post(
@@ -149,6 +145,7 @@ def send_msg():
         timeout=10
     )
     print("微信返回：", resp.json())
+
 
 if __name__ == "__main__":
     send_msg()
