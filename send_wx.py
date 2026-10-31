@@ -1,10 +1,10 @@
 import requests
 import os
 
-APPID = os.getenv("wx88c4b9aa2bf1498b")
-APPSECRET = os.getenv("d85d39a90adb9ef956a7028a59198c5a")
-OPENID = os.getenv("oxXJw3HRx1rXBMeTQ7Gupiuba-ro")
-TEMPLATE_ID = os.getenv("7fU6M7bSdpDq4d261_7PSGakMQuo6W_u4Smf-6sImpU")
+APPID = os.getenv("WX_APPID")
+APPSECRET = os.getenv("WX_APPSECRET")
+OPENID = os.getenv("WX_OPENID")
+TEMPLATE_ID = os.getenv("WX_TEMPLATE_ID")
 
 def get_token():
     url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APPID}&secret={APPSECRET}"
