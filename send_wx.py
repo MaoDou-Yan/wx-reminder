@@ -122,6 +122,8 @@ def send_msg():
     line2 = horo_lines[1] if len(horo_lines) >= 2 else "-"
     line3 = horo_lines[2] if len(horo_lines) >= 3 else "-"
     line4 = horo_lines[3] if len(horo_lines) >= 4 else "-"
+    line5 = horo_lines[4] if len(horo_lines) >= 5 else "-"
+    line6 = horo_lines[5] if len(horo_lines) >= 6 else "-"
 
     data = {
         "touser": OPENID,
@@ -134,6 +136,8 @@ def send_msg():
             "horo_line2": {"value": line2},
             "horo_line3": {"value": line3},
             "horo_line4": {"value": line4},
+            "horo_line5": {"value": line5},
+            "horo_line6": {"value": line6},
             "lunar_date": {"value": lunar_date},
             "yiji": {"value": yiji},
             "todo": {"value": todo}
