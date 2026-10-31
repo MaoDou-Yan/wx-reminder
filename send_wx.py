@@ -4,13 +4,13 @@ from datetime import datetime
 import pytz
 from lunar_python import Solar
 
-# ===== 微信配置（Secrets）=====
+# ===== 微信配置 =====
 APPID = os.getenv("WX_APPID")
 APPSECRET = os.getenv("WX_APPSECRET")
 OPENID = os.getenv("WX_OPENID")
 TEMPLATE_ID = os.getenv("WX_TEMPLATE_ID")
 
-# ===== 聚合数据 分开两个KEY =====
+# ===== 聚合数据 =====
 JUHE_WEATHER_KEY = os.getenv("JUHE_WEATHER_KEY")
 JUHE_HORO_KEY = os.getenv("JUHE_HORO_KEY")
 
@@ -18,7 +18,16 @@ JUHE_HORO_KEY = os.getenv("JUHE_HORO_KEY")
 CITY_NAME = "徐州"
 CONS_NAME = "双鱼座"
 TIMEZONE = pytz.timezone("Asia/Shanghai")
+LINE_MAX = 20  # 每行最多20汉字
 
+def split_text_by_len(text, max_len):
+    """按字数分割文本，返回列表，每段不超过max_len，空则返回空字符串"""
+    res = []
+    if not text:
+        return res
+    for i in range(0, len(text), max_len):
+        res.append(text[i:i+max_len])
+    return res
 
 def get_token():
     url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APPID}&secret={APPSECRET}"
@@ -28,9 +37,7 @@ def get_token():
         raise Exception("token获取失败")
     return res["access_token"]
 
-
 def get_weather():
-    """聚合天气接口，独立KEY"""
     try:
         url = "https://apis.juhe.cn/simpleWeather/query"
         params = {
@@ -39,30 +46,22 @@ def get_weather():
             "future_num": 1
         }
         res = requests.get(url, params=params, timeout=10).json()
-
         if res.get("error_code") != 0:
             print("天气接口错误：", res.get("reason"))
-            return "天气获取失败"
-
+            return "获取失败"
         result = res.get("result", {})
         realtime = result.get("realtime", {})
         future = result.get("future", [{}])[0]
-
         temp_now = realtime.get("temperature", "--")
         weather_info = realtime.get("info", "--")
-        direct = realtime.get("direct", "")
-        power = realtime.get("power", "")
         today_temp = future.get("temperature", "--")
-
-        return f"{weather_info} {temp_now}°C（{today_temp}）\n{direct} {power}"
-
+        return f"{weather_info} {temp_now}℃（{today_temp}）"
     except Exception as e:
         print("天气接口异常：", e)
-        return "天气获取失败"
+        return "获取失败"
 
-
-def get_horoscope():
-    """聚合星座接口，调整顺序，优先展示指数，summary压缩到80字，避免微信截断"""
+def get_horo_data():
+    """只请求一次星座接口，返回原始数据，不截断"""
     try:
         url = "http://web.juhe.cn/constellation/getAll"
         params = {
@@ -71,55 +70,62 @@ def get_horoscope():
             "type": "today"
         }
         res = requests.get(url, params=params, timeout=10).json()
-
         if res.get("error_code") != 0:
             print("星座接口错误：", res.get("reason"))
-            return "星座运势获取失败"
-
-        all_score = res.get("all", "")
-        color = res.get("color", "")
-        number = res.get("number", "")
-        summary = res.get("summary", "")
-
-        # 先放指数、幸运信息，运势正文压缩到80字符
-        summary_short = summary[:80] if len(summary) > 80 else summary
-        return f"综合：{all_score} | 幸运色：{color} | 数字：{number}\n{summary_short}"
-
+            return {"all":"--","color":"--","number":"--","summary":""}
+        return {
+            "all": res.get("all", "--"),
+            "color": res.get("color", "--"),
+            "number": res.get("number", "--"),
+            "summary": res.get("summary", "")
+        }
     except Exception as e:
         print("星座接口异常：", e)
-        return "星座运势获取失败"
+        return {"all":"--","color":"--","number":"--","summary":""}
 
-
-def get_lunar():
+def get_lunar_date():
     try:
         now = datetime.now(tz=TIMEZONE)
-        solar = Solar.fromDate(now)
-        lunar = solar.getLunar()
-
-        lunar_date = f"{lunar.getYearInChinese()}年{lunar.getMonthInChinese()}月{lunar.getDayInChinese()}"
+        lunar = Solar.fromDate(now).getLunar()
         ganzhi = lunar.getYearInGanZhi()
+        animal = lunar.getYearInGanZhi()
         animal = lunar.getYearShengXiao()
-        yi = "、".join(lunar.getDayYi()[:3])
-        ji = "、".join(lunar.getDayJi()[:3])
-
-        return f"{ganzhi}年({animal}) {lunar_date}\n宜：{yi}\n忌：{ji}"
-
+        month = lunar.getMonthInChinese()
+        day = lunar.getDayInChinese()
+        return f"{ganzhi}({animal}) {month}{day}"
     except Exception as e:
-        print("农历黄历异常：", e)
-        return "农历黄历获取失败"
+        print("农历日期异常：", e)
+        return "获取失败"
 
+def get_yiji():
+    try:
+        now = datetime.now(tz=TIMEZONE)
+        lunar = Solar.fromDate(now).getLunar()
+        yi = "、".join(lunar.getDayYi()[:2])
+        ji = "、".join(lunar.getDayJi()[:2])
+        return f"宜:{yi} 忌:{ji}"
+    except Exception as e:
+        print("宜忌异常：", e)
+        return "获取失败"
 
 def send_msg():
     token = get_token()
     now = datetime.now(tz=TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
 
     weather = get_weather()
-    horo = get_horoscope()
-    lunar = get_lunar()
+    horo = get_horo_data()
+    horo_head = f"综合{horo['all']} | {horo['color']} | {horo['number']}"
+    line_list = split_text_by_len(horo["summary"], LINE_MAX)
 
-    todo_list = """1. 完成今日工作复盘
-2. 学习软考高项资料30分钟
-3. 晚上健身30分钟"""
+    # 预先填充4行，不足的自动为空字符串
+    horo_line1 = line_list[0] if len(line_list)>=1 else ""
+    horo_line2 = line_list[1] if len(line_list)>=2 else ""
+    horo_line3 = line_list[2] if len(line_list)>=3 else ""
+    horo_line4 = line_list[3] if len(line_list)>=4 else ""
+
+    lunar_date = get_lunar_date()
+    yiji = get_yiji()
+    todo_list = "1.完成今日工作复盘\n2.学习软考高项资料30分钟\n3.晚上健身30分钟"
 
     data = {
         "touser": OPENID,
@@ -127,8 +133,13 @@ def send_msg():
         "data": {
             "time": {"value": now},
             "weather": {"value": weather},
-            "horo": {"value": horo},
-            "lunar": {"value": lunar},
+            "horo_head": {"value": horo_head},
+            "horo_line1": {"value": horo_line1},
+            "horo_line2": {"value": horo_line2},
+            "horo_line3": {"value": horo_line3},
+            "horo_line4": {"value": horo_line4},
+            "lunar_date": {"value": lunar_date},
+            "yiji": {"value": yiji},
             "todo": {"value": todo_list}
         }
     }
@@ -138,7 +149,6 @@ def send_msg():
         timeout=10
     )
     print("微信返回：", resp.json())
-
 
 if __name__ == "__main__":
     send_msg()
